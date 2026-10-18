@@ -16,13 +16,14 @@ security = TransportSecuritySettings(
 
 mcp = FastMCP(
     "Exam MCP Server",
+    stateless_http=True,
     transport_security=security,
 )
 
 
 @mcp.tool()
 async def solve_challenge(ctx: Context) -> str:
-    """Calculate the hash for the current HTTP challenge."""
+    """Hash the challenge from the current HTTP request."""
     challenge = challenge_header.get()
 
     if not challenge:
@@ -65,11 +66,4 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-@app.get("/")
-async def health():
-    return {"status": "running", "mcp_endpoint": "/mcp"}
-
-
 app.mount("/", mcp_app)
