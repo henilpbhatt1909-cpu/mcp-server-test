@@ -11,12 +11,7 @@ EMAIL = "24f2005969@ds.study.iitm.ac.in"
 challenge_header = ContextVar("challenge_header", default=None)
 
 security = TransportSecuritySettings(
-    allowed_hosts=[
-        "mcp-server-test-h40j.onrender.com",
-        "mcp-server-test-h40j.onrender.com:*",
-        "localhost:*",
-        "127.0.0.1:*",
-    ]
+    enable_dns_rebinding_protection=False
 )
 
 mcp = FastMCP(
