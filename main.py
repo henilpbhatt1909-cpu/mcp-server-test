@@ -3,25 +3,38 @@ import hashlib
 from contextvars import ContextVar
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 
 EMAIL = "24f2005969@ds.study.iitm.ac.in"
 challenge_header = ContextVar("challenge_header", default=None)
 
-mcp = FastMCP("Exam MCP Server")
+security = TransportSecuritySettings(
+    allowed_hosts=[
+        "mcp-server-test-h40j.onrender.com",
+        "mcp-server-test-h40j.onrender.com:*",
+        "localhost:*",
+        "127.0.0.1:*",
+    ]
+)
+
+mcp = FastMCP(
+    "Exam MCP Server",
+    transport_security=security,
+)
 
 
 @mcp.tool()
 async def solve_challenge(ctx: Context) -> str:
-    """Calculate the answer using the current HTTP challenge."""
+    """Calculate the hash for the current HTTP challenge."""
     challenge = challenge_header.get()
 
     if not challenge:
         raise ValueError("Missing X-Exam-Challenge header")
 
-    text = f"{challenge}:{EMAIL}"
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    message = f"{challenge}:{EMAIL}"
+    return hashlib.sha256(message.encode("utf-8")).hexdigest()[:16]
 
 
 mcp_app = mcp.streamable_http_app()
@@ -37,9 +50,10 @@ class HeaderMiddleware:
             return
 
         headers = dict(scope.get("headers", []))
-        value = headers.get(b"x-exam-challenge", b"").decode("ascii")
-        token = challenge_header.set(value or None)
+        raw = headers.get(b"x-exam-challenge", b"")
+        challenge = raw.decode("ascii") if raw else None
 
+        token = challenge_header.set(challenge)
         try:
             await self.app(scope, receive, send)
         finally:
@@ -55,13 +69,12 @@ async def lifespan(app):
         yield
 
 
-# The MCP SDK owns the HTTP routes
 app = FastAPI(lifespan=lifespan)
 
 
-@app.get("/health")
+@app.get("/")
 async def health():
-    return {"status": "running"}
+    return {"status": "running", "mcp_endpoint": "/mcp"}
 
 
 app.mount("/", mcp_app)
